@@ -1,6 +1,8 @@
 use std::{cell::UnsafeCell, mem::MaybeUninit, time::Duration};
 
+pub mod interpose;
 pub mod jmp;
+pub mod mem;
 pub mod watchdog;
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
@@ -9,18 +11,29 @@ pub enum Error {
     TimedOut,
 }
 
+#[derive(Default)]
+struct TimeoutData {
+    pub(crate) mem: mem::MemTracker,
+}
+
 thread_local! {
     pub static JMP_ENV: UnsafeCell<Option<MaybeUninit<jmp::JmpBuf>>> = UnsafeCell::new(None);
+
+    pub static TIMEOUT_DATA: UnsafeCell<Option<TimeoutData>> = UnsafeCell::new(None);
+}
+
+pub(crate) unsafe fn get_timeout_data() -> Result<&'static mut Option<TimeoutData>, ()> {
+    // we are actually calling get_timeout_data in thread destructor (because of free)
+    // which is a bad place to access the TLS. we should just return Err instead of
+    // panicking there.
+    let Ok(x) = TIMEOUT_DATA.try_with(|x| x.get()) else {
+        return Err(());
+    };
+    let x = &mut *x;
+    Ok(x)
 }
 
 pub fn timeout_cpu<R, F: Fn() -> R>(task: F, timeout: Duration) -> Result<R, Error> {
-    // TODO: allocations? / memory leaks
-    /*
-       https://github.com/EmbarkStudios/crash-handling/pull/8/files#diff-b04454ec1d15f45a222fc624d25df3492d207d9fdc209ef57815385a3a13a3d7
-       similar to crash handler crate i guess we have to interpose malloc instead of using global allocator.
-       because task() may call into non rust binary.
-
-    */
     // TODO: resources?
     /*
        is this a solution:
@@ -47,6 +60,11 @@ pub fn timeout_cpu<R, F: Fn() -> R>(task: F, timeout: Duration) -> Result<R, Err
        instead of one static jump buffer we should just create a tree of them with an ID
     */
     // TODO: overhead of everything and how to test for memory leaks and stuff?
+    let data = unsafe { get_timeout_data().unwrap() };
+    if data.is_some() {
+        panic!("nesting is not supported yet");
+    }
+    *data = Some(Default::default());
 
     let buf = unsafe { &mut *JMP_ENV.with(|x| x.get()) };
     *buf = Some(MaybeUninit::uninit());
@@ -63,11 +81,14 @@ pub fn timeout_cpu<R, F: Fn() -> R>(task: F, timeout: Duration) -> Result<R, Err
             watch.arm(timeout);
             let r = task();
             watch.disarm();
+            drop(watch);
+            *data = None;
             return Ok(r);
         }
         _ => {
             // ... this may cause double free, but it should be ok... right?
             drop(task);
+            *data = None;
             return Err(Error::TimedOut);
         }
     }

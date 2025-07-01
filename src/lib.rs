@@ -1,4 +1,4 @@
-use std::{alloc::GlobalAlloc, cell::UnsafeCell, mem::MaybeUninit, time::Duration};
+use std::{cell::UnsafeCell, mem::MaybeUninit, time::Duration};
 
 pub mod jmp;
 pub mod watchdog;
@@ -16,36 +16,36 @@ thread_local! {
 pub fn timeout_cpu<R, F: Fn() -> R>(task: F, timeout: Duration) -> Result<R, Error> {
     // TODO: allocations? / memory leaks
     /*
-        https://github.com/EmbarkStudios/crash-handling/pull/8/files#diff-b04454ec1d15f45a222fc624d25df3492d207d9fdc209ef57815385a3a13a3d7
-        similar to crash handler crate i guess we have to interpose malloc instead of using global allocator.
-        because task() may call into non rust binary.
-    
-     */
+       https://github.com/EmbarkStudios/crash-handling/pull/8/files#diff-b04454ec1d15f45a222fc624d25df3492d207d9fdc209ef57815385a3a13a3d7
+       similar to crash handler crate i guess we have to interpose malloc instead of using global allocator.
+       because task() may call into non rust binary.
+
+    */
     // TODO: resources?
     /*
-        is this a solution:
-        - track every open fd in processes  
-        - interpose sources of new fd and add to a list based on tid
-        - close all of them after failure
-     */
+       is this a solution:
+       - track every open fd in processes
+       - interpose sources of new fd and add to a list based on tid
+       - close all of them after failure
+    */
     // TODO: follow threads?
     /*
-        we can interpose thread creation but the problem is how to combine these timers?
-        - can we use cgroups somehow?
-        - is a monitor thread (or a smaller cputime for inaccurate periodically check) only solution?
-        - https://github.com/godzie44/BugStalker ? tokio oracle?
-     */
+       we can interpose thread creation but the problem is how to combine these timers?
+       - can we use cgroups somehow?
+       - is a monitor thread (or a smaller cputime for inaccurate periodically check) only solution?
+       - https://github.com/godzie44/BugStalker ? tokio oracle?
+    */
     // TODO: async?
     /*
-        async hooks in tokio? https://discord.com/channels/500028886025895936/500336333500448798/1369206090037723196
-        how tokio-console works? https://github.com/tokio-rs/console/tree/main/tokio-console#tasks-list
-        how tracing works?
-        https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#method.on_before_task_poll
-     */
+       async hooks in tokio? https://discord.com/channels/500028886025895936/500336333500448798/1369206090037723196
+       how tokio-console works? https://github.com/tokio-rs/console/tree/main/tokio-console#tasks-list
+       how tracing works?
+       https://docs.rs/tokio/latest/tokio/runtime/struct.Builder.html#method.on_before_task_poll
+    */
     // TODO: nested timeout calls in a thread?
     /*
-        instead of one static jump buffer we should just create a tree of them with an ID
-     */
+       instead of one static jump buffer we should just create a tree of them with an ID
+    */
     // TODO: overhead of everything and how to test for memory leaks and stuff?
 
     let buf = unsafe { &mut *JMP_ENV.with(|x| x.get()) };

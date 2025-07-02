@@ -1,13 +1,13 @@
 // https://github.com/EmbarkStudios/crash-handling/pull/8/files#diff-b04454ec1d15f45a222fc624d25df3492d207d9fdc209ef57815385a3a13a3d7
 //
-use crate::{get_timeout_data, interpose};
+use crate::{get_current_timeout_data, interpose};
 use libc::c_void;
 
 interpose!(c"malloc", fn REAL_MALLOC = malloc (size: usize) -> *mut c_void |r| {
-    match unsafe { get_timeout_data() } {
+    match unsafe { get_current_timeout_data() } {
         Ok(d) => {
-            let Some(d) = d else { return r; };
-            d.mem.track(r);
+            if d.is_null() { return r; };
+            unsafe { &mut *d }.mem.track(r);
             r
         },
         Err(_) => r
@@ -15,10 +15,10 @@ interpose!(c"malloc", fn REAL_MALLOC = malloc (size: usize) -> *mut c_void |r| {
 });
 
 interpose!(c"free", fn REAL_FREE = free (ptr: *mut c_void) |r| {
-    match unsafe { get_timeout_data() } {
+    match unsafe { get_current_timeout_data() } {
         Ok(d) => {
-            let Some(d) = d else { return r; };
-            d.mem.free(ptr);
+            if d.is_null() { return r; };
+            unsafe { &mut *d }.mem.free(ptr);
             r
         },
         Err(_) => r
@@ -51,10 +51,8 @@ impl MemTracker {
             }
         }
     }
-}
 
-impl Drop for MemTracker {
-    fn drop(&mut self) {
+    pub fn free_all(&mut self) {
         for ptr in self.allocations {
             if !ptr.is_null() {
                 unsafe { (REAL_FREE.unwrap())(ptr) };

@@ -1,7 +1,7 @@
 // https://github.com/EmbarkStudios/crash-handling/pull/8/files#diff-b04454ec1d15f45a222fc624d25df3492d207d9fdc209ef57815385a3a13a3d7
 //
 use crate::{get_current_timeout_data, interpose};
-use libc::c_void;
+use nix::libc::c_void;
 
 interpose!(c"malloc", fn REAL_MALLOC = malloc (size: usize) -> *mut c_void |r| {
     match unsafe { get_current_timeout_data() } {
@@ -39,7 +39,7 @@ impl MemTracker {
             }
         }
         unsafe {
-            libc::exit(81);
+            nix::libc::exit(81);
         }
     }
 

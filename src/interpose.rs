@@ -8,7 +8,7 @@ macro_rules! interpose {
             static INIT: parking_lot::Once = parking_lot::Once::new();
             INIT.call_once(|| unsafe {
                 const RTLD_NEXT: *mut c_void = -1isize as *mut c_void;
-                let ptr = libc::dlsym(RTLD_NEXT, $name_c.as_ptr().cast());
+                let ptr = nix::libc::dlsym(RTLD_NEXT, $name_c.as_ptr().cast());
                 if !ptr.is_null() {
                     $real_name = Some(std::mem::transmute::<*mut c_void, _>(ptr));
                 }

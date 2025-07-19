@@ -1,7 +1,9 @@
 use std::{cell::UnsafeCell, mem::MaybeUninit, time::Duration};
 
+#[cfg(feature = "mem-tracker")]
 pub mod interpose;
 pub mod jmp;
+#[cfg(feature = "mem-tracker")]
 pub mod mem;
 pub mod watchdog;
 
@@ -12,6 +14,7 @@ pub enum Error {
 }
 
 struct TimeoutData {
+    #[cfg(feature = "mem-tracker")]
     pub(crate) mem: mem::MemTracker,
 
     pub(crate) jump_env: UnsafeCell<Option<MaybeUninit<jmp::JmpBuf>>>,
@@ -23,6 +26,7 @@ impl Default for TimeoutData {
         Self {
             outer: std::ptr::null_mut(),
             jump_env: UnsafeCell::new(None),
+            #[cfg(feature = "mem-tracker")]
             mem: mem::MemTracker::default(),
         }
     }
@@ -58,7 +62,7 @@ pub(crate) fn set_current_timeout_data(data: *mut TimeoutData) -> Result<(), ()>
 pub fn timeout_cpu<R, F: Fn() -> R>(task: F, timeout: Duration) -> Result<R, Error> {
     // TODO: resources?
     /*
-       is this a solution:
+       can this be a solution:
        - track every open fd in processes
        - interpose sources of new fd and add to a list based on tid
        - close all of them after failure
@@ -125,9 +129,12 @@ pub fn timeout_cpu<R, F: Fn() -> R>(task: F, timeout: Duration) -> Result<R, Err
             // Drop. preventing a double free
             drop(watch);
 
-            // timer didn't trigger so we actually know current data is ours
-            let data = unsafe { &mut *get_current_timeout_data().unwrap() };
-            data.mem.free_all();
+            #[cfg(feature = "mem-tracker")]
+            {
+                // timer didn't trigger so we actually know current data is ours
+                let data = unsafe { &mut *get_current_timeout_data().unwrap() };
+                data.mem.free_all();
+            }
 
             // recover the outer
             if !outer.is_null() {
@@ -151,6 +158,7 @@ pub fn timeout_cpu<R, F: Fn() -> R>(task: F, timeout: Duration) -> Result<R, Err
                 x
             };
             let data = unsafe { &mut *data };
+            #[cfg(feature = "mem-tracker")]
             data.mem.free_all();
 
             // we can't trust the stack at this point

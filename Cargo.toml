@@ -1,11 +1,18 @@
 [package]
-name = "cpulimit"
+name = "cputimeout"
+description = "a very unsafe way of time-outing a cpu-bounded task."
+authors = ["Sahand <sahandevs@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/sahandevs/cputimeout"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+mem-tracker = []
+default = []
+
 [dependencies]
 cfg-if = "1.0.0"
-libc = "0.2.174"
 nix = "0.30.1"
 parking_lot = "0.12.4"
 thiserror = "2.0.12"

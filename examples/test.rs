@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use cpulimit::{timeout_cpu, Error};
+use cputimeout::{timeout_cpu, Error};
 
 // TODO: link to a c library and test if we are interposing allocations there
 fn tt() {
